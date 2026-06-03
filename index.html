@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ATHENA — Online Supplementary Material</title>
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    max-width: 860px;
+    margin: 2em auto;
+    padding: 0 1em;
+    color: #222;
+    line-height: 1.6;
+    background: #fff;
+  }
+  h1 { border-bottom: 2px solid #333; padding-bottom: .3em; }
+  h2 { margin-top: 2em; border-bottom: 1px solid #ccc; padding-bottom: .2em; }
+  h3 { margin-top: 1.5em; }
+  .meta { color: #666; font-size: .9em; margin-bottom: 2em; }
+  .algo {
+    background: #f8f8f8;
+    border-left: 3px solid #555;
+    padding: 1em 1.2em;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: .9em;
+    white-space: pre;
+    overflow-x: auto;
+    line-height: 1.5;
+  }
+  .prompt {
+    background: #f5f5f5;
+    border: 1px solid #333;
+    border-radius: 4px;
+    padding: 1em 1.2em;
+    margin: 1em 0;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: .88em;
+  }
+  .prompt .title {
+    background: #333;
+    color: #fff;
+    padding: .3em .6em;
+    margin: -1em -1.2em 1em -1.2em;
+    border-radius: 3px 3px 0 0;
+    font-weight: bold;
+    font-size: .9em;
+  }
+  .prompt .label {
+    font-weight: bold;
+    text-decoration: underline;
+    display: inline-block;
+    margin-top: .8em;
+  }
+  code { background: #efefef; padding: 1px 4px; border-radius: 3px; font-size: .92em; }
+  .footer { margin-top: 4em; padding-top: 1em; border-top: 1px solid #ccc; color: #666; font-size: .85em; }
+</style>
+</head>
+<body>
+
+<h1>ATHENA — Online Supplementary Material</h1>
+
+<p class="meta">
+Supplementary content moved out of the main paper due to space limits.
+<br>Paper: <em>Interpretable Stealthy APT Detection via Contrastive Learning and Semantic Provenance Abstraction</em>.
+</p>
+
+<h2>Contents</h2>
+<ul>
+  <li><a href="#algo1">A. Algorithm 1 — Structural Mutation</a></li>
+  <li><a href="#prompt1">B. Prompt Template — Subgraph Selection</a></li>
+  <li><a href="#prompt2">C. Prompt Template — Semantic Mutation</a></li>
+</ul>
+
+<h2 id="algo1">A. Algorithm 1 — Structural Mutation</h2>
+
+<p>Referenced from §4.3.1 Structural Mutation in the main paper.</p>
+
+<p><strong>Input</strong>: <code>G⁺ = (V, E)</code> (benign anchor graph), <code>G⁻</code> (attack corpus), <code>K</code> (retrieval count), <code>m</code> (seed count), <code>r</code> (hop radius)</p>
+
+<p><strong>Output</strong>: mutated graph <code>G̃ = (Ṽ, Ẽ)</code></p>
+
+<div class="algo">1:  {G⁻_k} for k=1..K ← Top-K over G⁻ in 𝒢⁻ by K_WL(G⁺, G⁻)
+2:  s(u,v) ← |T(u) ∩ T(v)| / |T(u) ∪ T(v)|
+3:  Cands ← ∅
+4:  for k = 1 to K do
+5:      Seeds_k ← Top-m over (p, q) in V × V(G⁻_k) by s(p, q)
+6:      for all (p, q) in Seeds_k do
+7:          S, S′ ← {p}, {q};   Q ← [(p, q)]
+8:          φ ← {p ↦ q}
+9:          while Q ≠ ∅ do
+10:             (p_c, q_c) ← Q.dequeue()
+11:             for all q′ ∈ N_{G⁻_k}(q_c) \ S′ do
+12:                 𝒰 ← N_{G⁺}(p_c) \ S
+13:                 if 𝒰 ≠ ∅ then
+14:                     p′ ← argmax_{u ∈ 𝒰} s(u, q′)
+15:                     S, S′ ← S ∪ {p′}, S′ ∪ {q′}
+16:                     φ(p′) ← q′;   Q.enqueue((p′, q′))
+17:                 end if
+18:             end for
+19:         end while
+20:         C ← {u ∈ V | min_{v ∈ S} d(u, v) ≤ r} \ S
+21:         E_{S′} ← {(u, v) ∈ E(G⁻_k) : u, v ∈ S′}
+22:         Cands ← Cands ∪ {(S, S′, E_{S′}, φ, C)}
+23:     end for
+24: end for
+25: (S, S′, E_{S′}, φ, C) ← LlmSelect(Cands)
+26: Ṽ ← (V \ S) ∪ S′
+27: Ẽ ← {(φ(u), φ(v)) | (u, v) ∈ E, {u, v} ⊄ S} ∪ E_{S′}
+28: return G̃ = (Ṽ, Ẽ)</div>
+
+<h2 id="prompt1">B. Prompt Template — Subgraph Selection</h2>
+
+<p>Referenced from §4.3.1 LLM-Based Candidate Selection in the main paper.</p>
+
+<div class="prompt">
+<div class="title">Prompt: Subgraph Selection</div>
+
+<span class="label">[Context]</span>
+<br>In a provenance graph, subgraph <code>S</code> will be replaced by <code>S′</code>; the <code>r</code>-hop context <code>C</code> of <code>S</code> remains unchanged.
+
+<br><span class="label">[Input]</span>
+<br><code>{m}</code> candidates:
+<br>&nbsp;&nbsp;&nbsp;&nbsp;Candidate 1: S=<code>{benign_triples}</code>, S′=<code>{attack_triples}</code>, C=<code>{context_triples}</code>
+<br>&nbsp;&nbsp;&nbsp;&nbsp;...
+<br>&nbsp;&nbsp;&nbsp;&nbsp;Candidate m: S=<code>{benign_triples}</code>, S′=<code>{attack_triples}</code>, C=<code>{context_triples}</code>
+
+<br><span class="label">[Task]</span>
+<br>Score each candidate on a 1–5 scale along two dimensions:
+<br>(1) <em>operational compatibility</em>: whether S′ connects to C via valid system operations;
+<br>(2) <em>behavioral similarity</em>: whether S and S′ share similar behavioral patterns.
+
+<br><span class="label">[Output]</span>
+<br>JSON: <code>[{candidate_id, compatibility_score, similarity_score}]</code>.
+</div>
+
+<h2 id="prompt2">C. Prompt Template — Semantic Mutation</h2>
+
+<p>Referenced from §4.3.2 Semantic Mutation in the main paper.</p>
+
+<div class="prompt">
+<div class="title">Prompt: Semantic Mutation</div>
+
+<span class="label">[Context]</span>
+<br>The following attack process nodes are embedded in a provenance graph with their associated file/network nodes and <code>r</code>-hop benign context <code>C</code>.
+
+<br><span class="label">[Input]</span>
+<br><code>{n}</code> process nodes:
+<br>&nbsp;&nbsp;&nbsp;&nbsp;Node 1: attributes=<code>{attributes}</code>, associated_nodes=<code>{file/network_attributes}</code>, strategy=<code>{assigned_strategy}</code>, preserve=<code>{critical_component}</code>, C=<code>{context_triples}</code>
+<br>&nbsp;&nbsp;&nbsp;&nbsp;...
+<br>&nbsp;&nbsp;&nbsp;&nbsp;Node n: attributes=<code>{attributes}</code>, associated_nodes=<code>{file/network_attributes}</code>, strategy=<code>{assigned_strategy}</code>, preserve=<code>{critical_component}</code>, C=<code>{context_triples}</code>
+
+<br><span class="label">[Task]</span>
+<br>Mutate each process node's attributes via its assigned strategy:
+<br>&nbsp;&nbsp;&nbsp;&nbsp;A. <strong>Replacement</strong>: preserve the component indicated by <em>preserve</em> and replace the other with benign values guided by C.
+<br>&nbsp;&nbsp;&nbsp;&nbsp;B. <strong>Rewriting</strong>: rewrite the entire command into a different expression guided by C that fits the surrounding benign context.
+<br>&nbsp;&nbsp;&nbsp;&nbsp;C. <strong>Extension</strong>: preserve entire command, prepend/append benign operations from C.
+
+<br>For each mutated process node, also output updated attributes for any associated file or network nodes whose values change.
+
+<br><br><strong>Constraints</strong>:
+<br>(1) generated values must be legitimate system commands, file names, or IP addresses;
+<br>(2) mutated values must be compatible with neighboring operations in C.
+
+<br><span class="label">[Output]</span>
+<br>JSON: <code>[{node_id, new_attributes, associated_updates}]</code>.
+</div>
+
+<div class="footer">
+<p>This page hosts the online supplementary material referenced in the main paper.
+For source code and datasets, see the project repository at
+<a href="https://github.com/xinguohua/athena">github.com/xinguohua/athena</a>.</p>
+</div>
+
+</body>
+</html>
