@@ -70,6 +70,7 @@ Supplementary content moved out of the main paper due to space limits.
   <li><a href="#algo1">A. Algorithm 1 — Structural Mutation</a></li>
   <li><a href="#prompt1">B. Prompt Template — Subgraph Selection</a></li>
   <li><a href="#prompt2">C. Prompt Template — Semantic Mutation</a></li>
+  <li><a href="#hyperparam">D. Additional Hyperparameter Analysis (GNN Layers and Embedding Dimension)</a></li>
 </ul>
 
 <h2 id="algo1">A. Algorithm 1 — Structural Mutation</h2>
@@ -165,6 +166,22 @@ Supplementary content moved out of the main paper due to space limits.
 <br><span class="label">[Output]</span>
 <br>JSON: <code>[{node_id, new_attributes, associated_updates}]</code>.
 </div>
+
+<h2 id="hyperparam">D. Additional Hyperparameter Analysis (GNN Layers and Embedding Dimension)</h2>
+
+<p>Referenced from <em>RQ6. Influence of Different Parameters</em> in the main paper. The main paper reports sensitivity for time window length (<code>T</code>) and neighborhood size (<code>r</code>); analysis for GNN layers (<code>L</code>) and embedding dimension (<code>D</code>) is provided here.</p>
+
+<h3>GNN Layers (<code>L</code>)</h3>
+
+<p>This parameter refers to the number of layers in the GNN. As the model depth increases, detection performance exhibits a non-linear trend: shallow architectures (e.g., 2 layers) yield lower F1 scores due to limited representational capacity; a depth of 3 layers achieves the best trade-off between expressiveness and generalization, resulting in the highest F1; further increasing the depth to 4 layers or more leads to performance degradation. Memory consumption remains largely stable across different depth settings. Overall, a 3-layer model provides the most robust balance between detection performance and resource overhead.</p>
+
+<p style="text-align: center;"><img src="Depth.png" alt="GNN Layers sensitivity" style="max-width: 60%; height: auto;"></p>
+
+<h3>Embedding Dimension (<code>D</code>)</h3>
+
+<p>Embedding dimension refers to the dimensionality of the embedding vectors, which controls the scale of node feature representations. Increasing the dimension from 16 to 64 significantly improves recall and F1, indicating enhanced structural representation. Further increasing the dimension to 128 and 256 degrades F1, as embeddings are expanded into weakly informative dimensions, reducing the separability between normal and anomalous samples under distance-based metrics. Memory consumption varies little with embedding dimension. Overall, a 64-dimensional embedding provides the best balance between detection performance and system overhead.</p>
+
+<p style="text-align: center;"><img src="Width.png" alt="Embedding Dimension sensitivity" style="max-width: 60%; height: auto;"></p>
 
 <div class="footer">
 <p>This page hosts the online supplementary material referenced in the main paper.
