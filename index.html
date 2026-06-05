@@ -71,6 +71,7 @@ Supplementary content moved out of the main paper due to space limits.
   <li><a href="#prompt1">B. Prompt Template — Subgraph Selection</a></li>
   <li><a href="#prompt2">C. Prompt Template — Semantic Mutation</a></li>
   <li><a href="#hyperparam">D. Additional Hyperparameter Analysis (GNN Layers and Embedding Dimension)</a></li>
+  <li><a href="#llmconfig">E. LLM Configuration &amp; Reproducibility</a></li>
 </ul>
 
 <h2 id="algo1">A. Algorithm 1 — Structural Mutation</h2>
@@ -182,6 +183,65 @@ Supplementary content moved out of the main paper due to space limits.
 <p>Embedding dimension refers to the dimensionality of the embedding vectors, which controls the scale of node feature representations. Increasing the dimension from 16 to 64 significantly improves recall and F1, indicating enhanced structural representation. Further increasing the dimension to 128 and 256 degrades F1, as embeddings are expanded into weakly informative dimensions, reducing the separability between normal and anomalous samples under distance-based metrics. Memory consumption varies little with embedding dimension. Overall, a 64-dimensional embedding provides the best balance between detection performance and system overhead.</p>
 
 <p style="text-align: center;"><img src="Width.png" alt="Embedding Dimension sensitivity" style="max-width: 60%; height: auto;"></p>
+
+<h2 id="llmconfig">E. LLM Configuration &amp; Reproducibility</h2>
+
+<p>Referenced from §4 Implementation and RQ2 (3) Cost &amp; Latency in the main paper. The main paper lists only the parameters shared across all five LLMs (sampling temperature 0.2, top-<em>p</em> 0.95, max generation 1024); full per-model decoding settings, the local deployment recipe, the retry/fallback policy, and the USD-cost pricing source are released here for reproducibility.</p>
+
+<h3>E.1 Per-Model Decoding Configuration</h3>
+
+<p>All five LLMs are queried with the JSON-only system instruction described in Prompts B and C above. Per-model deviations from the shared defaults are listed below; unlisted fields use vendor defaults.</p>
+
+<div class="algo">Model         Size   Temp  top-p  top-k  max_tokens (sel/mut)  stop_tokens     access
+-----         ----   ----  -----  -----  --------------------  -----------     ------
+GPT-4o        --     0.2   0.95   --     512 / 1024            ["\n\n"]        OpenAI API
+Qwen2.5       7B     0.2   0.95   40     512 / 1024            ["&lt;|im_end|&gt;"] vLLM (local)
+Qwen2.5       14B    0.2   0.95   40     512 / 1024            ["&lt;|im_end|&gt;"] vLLM (local)
+DeepSeek-V3   671B   0.2   0.95   --     512 / 1024            ["\n\n"]        DeepSeek API
+GLM-4         9B     0.2   0.95   40     512 / 1024            ["&lt;|user|&gt;"]   vLLM (local)</div>
+
+<p>The candidate-selection stage uses a 512-token budget (short scoring output); the semantic-mutation stage uses 1024 tokens (richer attribute edits). The shared temperature 0.2 keeps generation stable while preserving enough variability for diverse mutations.</p>
+
+<h3>E.2 Local Deployment Recipe</h3>
+
+<p>For Qwen2.5-7B/14B and GLM-4-9B we use vLLM 0.6.x for batched inference on a single NVIDIA RTX 4090 (24 GB):</p>
+
+<div class="algo"># Qwen2.5-14B example (16-bit weights, fits in 24 GB with 2k context)
+python -m vllm.entrypoints.openai.api_server \
+    --model Qwen/Qwen2.5-14B-Instruct \
+    --dtype bfloat16 \
+    --max-model-len 2048 \
+    --gpu-memory-utilization 0.92 \
+    --port 8000
+
+# Qwen2.5-7B / GLM-4-9B: same command, swap --model
+# DeepSeek-V3 (671B) is too large for a single 4090; we used the public DeepSeek API for the reported numbers.</div>
+
+<p>Average end-to-end latency reported in <em>tab:llm-cost</em> includes network round-trip for API models (GPT-4o, DeepSeek-V3) and local vLLM queuing for the others.</p>
+
+<h3>E.3 Verification Retry &amp; Fallback Policy</h3>
+
+<p>When a generated mutation fails any of the four unified-verification checks (operation legality, attribute feasibility, imperceptibility, hardness), ATHENA does <em>not</em> silently drop the candidate. Instead:</p>
+
+<ol>
+  <li><strong>Regenerate (up to 3 retries)</strong> — the same prompt is re-sampled with a fresh seed; the verification failure mode (which check failed) is appended to the system message to bias the next sample away from the same error.</li>
+  <li><strong>Fallback to next candidate</strong> — if all 3 retries fail, the next-highest-ranked candidate from the LlmSelect output is used as the mutation target.</li>
+  <li><strong>Hard drop</strong> — if every candidate exhausts its retry budget, the snapshot is excluded from the augmentation batch for this epoch (this happens for &lt; 2% of snapshots across all 5 LLMs in our runs).</li>
+</ol>
+
+<p>The "Total Calls" column in <em>tab:llm-cost</em> reports the per-snapshot average call count (1 selection + 1 mutation + average retries), which directly reflects each model's verification pass-through rate.</p>
+
+<h3>E.4 USD Cost Methodology</h3>
+
+<p>The "USD / 1k Snap" column in <em>tab:llm-cost</em> is computed as follows:</p>
+
+<ul>
+  <li><strong>GPT-4o</strong> — OpenAI public pricing as of June 2026 (<code>$2.50</code> per 1M input tokens, <code>$10.00</code> per 1M output tokens), multiplied by per-snapshot token usage × Total Calls × 1000.</li>
+  <li><strong>DeepSeek-V3</strong> — DeepSeek public API pricing as of June 2026, same formula.</li>
+  <li><strong>Qwen2.5 (7B / 14B), GLM-4 (9B)</strong> — amortized RTX 4090 rental cost using the vast.ai reference rate (<code>~$0.40</code>/hour) × wall-clock time per snapshot × 1000.</li>
+</ul>
+
+<p><strong>Caveat.</strong> API prices change frequently; the absolute USD numbers are illustrative as of the paper's revision date. The per-call token counts and latencies in <em>tab:llm-cost</em> are physical quantities and remain reproducible regardless of pricing shifts.</p>
 
 <div class="footer">
 <p>This page hosts the online supplementary material referenced in the main paper.
