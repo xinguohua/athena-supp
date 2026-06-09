@@ -68,7 +68,7 @@ Supplementary content moved out of the main paper due to space limits.
 <h2>Contents</h2>
 <ul>
   <li><a href="#algo1">A. Algorithm 1 — Structural Mutation</a></li>
-  <li><a href="#prompt1">B. Prompt Template — Subgraph Selection</a></li>
+  <li><a href="#prompt1">B. Prompt Template — Edge Mutation</a></li>
   <li><a href="#prompt2">C. Prompt Template — Semantic Mutation</a></li>
   <li><a href="#hyperparam">D. Additional Hyperparameter Analysis (GNN Layers and Embedding Dimension)</a></li>
   <li><a href="#llmconfig">E. LLM Configuration &amp; Reproducibility</a></li>
@@ -111,29 +111,34 @@ Supplementary content moved out of the main paper due to space limits.
 27: Ẽ ← {(φ(u), φ(v)) | (u, v) ∈ E, {u, v} ⊄ S} ∪ E_{S′}
 28: return G̃ = (Ṽ, Ẽ)</div>
 
-<h2 id="prompt1">B. Prompt Template — Subgraph Selection</h2>
+<h2 id="prompt1">B. Prompt Template — Edge Mutation</h2>
 
-<p>Referenced from §4.3.1 LLM-Based Candidate Selection in the main paper.</p>
+<p>Referenced from §4.3.1 LLM-Guided Edge Mutation in the main paper.</p>
 
 <div class="prompt">
-<div class="title">Prompt: Subgraph Selection</div>
+<div class="title">Prompt: Edge Mutation</div>
 
 <span class="label">[Context]</span>
-<br>In a provenance graph, subgraph <code>S</code> will be replaced by <code>S′</code>; the <code>r</code>-hop context <code>C</code> of <code>S</code> remains unchanged.
+<br>An intermediate mutated graph <code>G̃_mid</code> has been obtained by replacing a benign subgraph <code>S</code> in anchor <code>G⁺</code> with an aligned attack subgraph <code>S′</code> from corpus <code>G⁻</code>. The internal attack edges of <code>S′</code> must be preserved to maintain the attack causal chain. We ask the LLM to edit only the boundary edges to maximize stealth.
 
 <br><span class="label">[Input]</span>
-<br><code>{m}</code> candidates:
-<br>&nbsp;&nbsp;&nbsp;&nbsp;Candidate 1: S=<code>{benign_triples}</code>, S′=<code>{attack_triples}</code>, C=<code>{context_triples}</code>
-<br>&nbsp;&nbsp;&nbsp;&nbsp;...
-<br>&nbsp;&nbsp;&nbsp;&nbsp;Candidate m: S=<code>{benign_triples}</code>, S′=<code>{attack_triples}</code>, C=<code>{context_triples}</code>
+<br>Candidate boundary edges, partitioned into two classes:
+<br>&nbsp;&nbsp;&nbsp;&nbsp;Class 1 — Cross-boundary edges (<code>S′ ↔ C</code>):
+<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Existing edges: <code>[(src_type:attr, op, dst_type:attr), ...]</code>
+<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Candidate new edges: <code>[(src_type:attr, op, dst_type:attr), ...]</code>
+<br>&nbsp;&nbsp;&nbsp;&nbsp;Class 2 — Benign-internal edges (<code>C ↔ C</code>):
+<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Existing edges: <code>[(src_type:attr, op, dst_type:attr), ...]</code>
+<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Candidate new edges: <code>[(src_type:attr, op, dst_type:attr), ...]</code>
 
 <br><span class="label">[Task]</span>
-<br>Score each candidate on a 1–5 scale along two dimensions:
-<br>(1) <em>operational compatibility</em>: whether S′ connects to C via valid system operations;
-<br>(2) <em>behavioral similarity</em>: whether S and S′ share similar behavioral patterns.
+<br>For each candidate edge, decide one of:
+<br>(1) <code>ADD</code> — add this new edge to blend the attack into surrounding benign behavior, or to enrich benign context as natural noise;
+<br>(2) <code>REMOVE</code> — remove this existing edge if it exposes the attack or appears semantically out of place in the new context;
+<br>(3) <code>KEEP</code> — leave the edge unchanged.
+<br>Internal attack edges of <code>S′</code> are not editable and must not appear in decisions.
 
 <br><span class="label">[Output]</span>
-<br>JSON: <code>[{candidate_id, compatibility_score, similarity_score}]</code>.
+<br>JSON: <code>[{edge_id, action: ADD|REMOVE|KEEP, reason}]</code>.
 </div>
 
 <h2 id="prompt2">C. Prompt Template — Semantic Mutation</h2>
