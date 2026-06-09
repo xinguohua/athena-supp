@@ -191,19 +191,19 @@ Supplementary content moved out of the main paper due to space limits.
 
 <h2 id="llmconfig">E. LLM Configuration &amp; Reproducibility</h2>
 
-<p>Referenced from §4 Implementation and RQ2 (3) Cost &amp; Latency in the main paper. The main paper lists only the parameters shared across all five LLMs (sampling temperature 0.2, top-<em>p</em> 0.95, max generation 1024); full per-model decoding settings, the local deployment recipe, the retry/fallback policy, and the USD-cost pricing source are released here for reproducibility.</p>
+<p>Referenced from §5 Implementation and RQ2 setup in the main paper. The main paper points here for the exact model versions, prompts, retry policy, and per-model configurations; the local deployment recipe and the USD-cost pricing source are also released here for reproducibility.</p>
 
-<h3>E.1 Per-Model Decoding Configuration</h3>
+<h3>E.1 Per-Model Configurations</h3>
 
-<p>All five LLMs are queried with the JSON-only system instruction described in Prompts B and C above. Per-model deviations from the shared defaults are listed below; unlisted fields use vendor defaults.</p>
+<p>All five LLMs are queried with the JSON-only system instruction described in Prompts B and C above. The table below lists the exact model version (snapshot/release tag), shared sampling parameters (temperature, top-<em>p</em>, top-<em>k</em>, max generation length), stop tokens, and access mode for each model.</p>
 
-<div class="algo">Model         Size   Temp  top-p  top-k  max_tokens (sel/mut)  stop_tokens     access
------         ----   ----  -----  -----  --------------------  -----------     ------
-GPT-4o        --     0.2   0.95   --     512 / 1024            ["\n\n"]        OpenAI API
-Qwen2.5       7B     0.2   0.95   40     512 / 1024            ["&lt;|im_end|&gt;"] vLLM (local)
-Qwen2.5       14B    0.2   0.95   40     512 / 1024            ["&lt;|im_end|&gt;"] vLLM (local)
-DeepSeek-V3   671B   0.2   0.95   --     512 / 1024            ["\n\n"]        DeepSeek API
-GLM-4         9B     0.2   0.95   40     512 / 1024            ["&lt;|user|&gt;"]   vLLM (local)</div>
+<div class="algo">Model         Size   Version                       Temp  top-p  top-k  max_tokens (sel/mut)  stop_tokens     access
+-----         ----   -------                       ----  -----  -----  --------------------  -----------     ------
+GPT-4o        --     gpt-4o-2024-08-06             0.2   0.95   --     512 / 1024            ["\n\n"]        OpenAI API
+Qwen2.5       7B     Qwen2.5-7B-Instruct           0.2   0.95   40     512 / 1024            ["&lt;|im_end|&gt;"] vLLM (local)
+Qwen2.5       14B    Qwen2.5-14B-Instruct          0.2   0.95   40     512 / 1024            ["&lt;|im_end|&gt;"] vLLM (local)
+DeepSeek-V3   671B   deepseek-chat (2024-12)       0.2   0.95   --     512 / 1024            ["\n\n"]        DeepSeek API
+GLM-4         9B     glm-4-9b-chat                 0.2   0.95   40     512 / 1024            ["&lt;|user|&gt;"]   vLLM (local)</div>
 
 <p>The candidate-selection stage uses a 512-token budget (short scoring output); the semantic-mutation stage uses 1024 tokens (richer attribute edits). The shared temperature 0.2 keeps generation stable while preserving enough variability for diverse mutations.</p>
 
