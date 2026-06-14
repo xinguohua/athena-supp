@@ -73,6 +73,7 @@ Supplementary content moved out of the main paper due to space limits.
   <li><a href="#hyperparam">D. Additional Hyperparameter Analysis (GNN Layers and Embedding Dimension)</a></li>
   <li><a href="#llmconfig">E. LLM Configuration &amp; Reproducibility</a></li>
   <li><a href="#rq1ext">F. Extended RQ1 Results (Additional Host Sub-datasets)</a></li>
+  <li><a href="#dataset">G. Annotated Dataset</a></li>
 </ul>
 
 <h2 id="algo1">A. Algorithm 1 — Structural Mutation</h2>
@@ -293,6 +294,14 @@ python -m vllm.entrypoints.openai.api_server \
 </table>
 
 <p>All results use the same train/test split, hyperparameters, and evaluation protocol described in §V of the main paper.</p>
+
+<h2 id="dataset">G. Annotated Dataset</h2>
+
+<p>The annotated APT detection dataset (manually verified malicious entity labels and ATT&amp;CK technique labels for each malicious snapshot across DARPA E3, DARPA E5, ATLAS, and OpTC) is publicly available at:</p>
+
+<p><a href="https://anonymous.4open.science/r/APT-ATHENA"><code>https://anonymous.4open.science/r/APT-ATHENA</code></a></p>
+
+<p>The annotations were performed by three doctoral researchers in system security based on official attack reports. The dataset includes provenance graph snapshots, malicious entity labels, and ATT&amp;CK technique mappings used in the experiments reported in §V of the main paper.</p>
 
 <div class="footer">
 <p>This page hosts the online supplementary material referenced in the main paper.
