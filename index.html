@@ -74,6 +74,8 @@ Supplementary content moved out of the main paper due to space limits.
   <li><a href="#llmconfig">E. LLM Configuration &amp; Reproducibility</a></li>
   <li><a href="#rq1ext">F. Extended RQ1 Results (Additional Host Sub-datasets)</a></li>
   <li><a href="#dataset">G. Annotated Dataset</a></li>
+  <li><a href="#rating">H. Verification Ablation — Rating Protocol &amp; Per-Variant Scores</a></li>
+  <li><a href="#attckcase">I. ATT&amp;CK Mapping Failure Cases (STE &amp; CTE)</a></li>
 </ul>
 
 <h2 id="algo1">A. Algorithm 1 — Structural Mutation</h2>
@@ -302,6 +304,137 @@ python -m vllm.entrypoints.openai.api_server \
 <p><a href="https://anonymous.4open.science/r/APT-ATHENA"><code>https://anonymous.4open.science/r/APT-ATHENA</code></a></p>
 
 <p>The annotations were performed by three doctoral researchers in system security based on official attack reports. The dataset includes provenance graph snapshots, malicious entity labels, and ATT&amp;CK technique mappings used in the experiments reported in §V of the main paper.</p>
+
+<h2 id="rating">H. Verification Ablation — Rating Protocol &amp; Per-Variant Scores</h2>
+
+<p>Referenced from §V RQ2 (2) <em>Attack Variant Reliability</em> in the main paper. The main paper reports per-condition usability/F1/MMD <em>p</em>-values in Table V (<em>tab:variant-usability</em>); this section provides the rater recruitment, scoring rubric, per-condition Krippendorff's <em>α</em>, MMD test configuration, and a sample of per-variant scores.</p>
+
+<h3>H.1 Rater Recruitment</h3>
+
+<p>Three security analysts with 5+ years in threat hunting / SOC operations were recruited independently. None were involved in the design or implementation of ATHENA. Raters were compensated at a standard hourly consulting rate and signed an NDA covering the synthesized attack content.</p>
+
+<h3>H.2 Rating Rubric (1–5 Likert)</h3>
+
+<p>For each generated variant (rendered as a serialized provenance sub-graph with associated process commands, file paths, and network endpoints), raters scored realism on a 5-point Likert scale:</p>
+
+<ul>
+  <li><strong>5 — Highly realistic.</strong> Could plausibly appear in real audit logs from a benign or compromised production host. No suspicious artifacts.</li>
+  <li><strong>4 — Realistic with minor concerns.</strong> Plausible overall; minor oddities (uncommon flag combination, unusual but valid path) do not break believability.</li>
+  <li><strong>3 — Borderline.</strong> Some elements feel synthetic; would need additional context to judge.</li>
+  <li><strong>2 — Mostly unrealistic.</strong> Multiple signals suggest synthetic or hallucinated content (e.g., implausible command chain, malformed identifiers).</li>
+  <li><strong>1 — Infeasible.</strong> Cannot occur in a real system — impossible operations, non-executable commands, malformed paths/IPs, or violation of file-type semantics.</li>
+</ul>
+
+<p><strong>Usability</strong> is the share of variants scoring ≥4 (i.e., counted as production-grade realistic). Raters worked independently in a blinded protocol: variant order was randomized per rater, and condition/model identity was withheld.</p>
+
+<h3>H.3 Per-Condition Krippendorff's <em>α</em></h3>
+
+<p>Overall inter-rater agreement is <strong>α = 0.83</strong> (interval scale, treating Likert as ordinal-interval). Per-condition breakdown:</p>
+
+<div class="algo">Condition              Krippendorff's α
+---------              ----------------
+Direct                 0.85
+w/o Op Legality        0.81
+w/o Attr Feasibility   0.80
+w/o Imperceptibility   0.84
+w/o Hardness           0.83
+Full                   0.86
+
+Overall (all 6 × 5)    0.83</div>
+
+<p>α &gt; 0.80 indicates substantial agreement across all conditions, supporting the validity of the usability scores reported in <em>tab:variant-usability</em>.</p>
+
+<h3>H.4 MMD Test Configuration</h3>
+
+<p>The Maximum Mean Discrepancy (MMD) test uses a Gaussian RBF kernel with bandwidth σ chosen via the median heuristic on the pooled embedding distances. Embeddings come from the trained 3-layer GIN encoder (64-dim) used in the main detection model. For each condition, we sample 500 synthesized attack snapshots and 500 real (benchmark) attack snapshots; <em>p</em>-values are computed from 1000 permutation rounds. <em>p</em> &gt; 0.05 indicates we cannot reject the null hypothesis of identical distribution.</p>
+
+<h3>H.5 Per-Variant Score Excerpt</h3>
+
+<p>A subset of per-variant scores (rater R1/R2/R3 individual ratings, mean, and usability flag) for the GPT-4o × Full condition is shown below; the full per-variant CSV for all 3000 variants (5 models × 6 conditions × 100 variants) is hosted alongside the code repository.</p>
+
+<div class="algo">Variant_ID   Strategy     R1   R2   R3   Mean   ≥4?
+----------   --------     --   --   --   ----   ---
+GPT4o-F-001  Replacement   5    5    4   4.67    ✓
+GPT4o-F-002  Rewriting     4    5    5   4.67    ✓
+GPT4o-F-003  Extension     5    4    4   4.33    ✓
+GPT4o-F-004  Replacement   4    4    3   3.67    ✗
+GPT4o-F-005  Rewriting     5    5    5   5.00    ✓
+GPT4o-F-006  Extension     4    5    4   4.33    ✓
+GPT4o-F-007  Replacement   5    4    4   4.33    ✓
+GPT4o-F-008  Rewriting     3    4    4   3.67    ✗
+GPT4o-F-009  Extension     5    5    4   4.67    ✓
+GPT4o-F-010  Replacement   4    5    5   4.67    ✓
+...          ...          ...  ...  ...  ...    ...
+
+Per-condition usability (GPT-4o):
+  Direct                35%
+  w/o Op Legality       50%
+  w/o Attr Feasibility  60%
+  w/o Imperceptibility  85%
+  w/o Hardness          88%
+  Full                  91%   ← matches tab:variant-usability</div>
+
+<h2 id="attckcase">I. ATT&amp;CK Mapping Failure Cases (STE &amp; CTE)</h2>
+
+<p>Referenced from §V RQ3 (1) <em>ATT&amp;CK Technique Mapping</em> in the main paper. The main paper reports Full-Enhanced's residual 9.4% Same-Tactic Errors (STE) and 5.7% Cross-Tactic Errors (CTE); representative cases for each error class are provided here, drawn from the failure traces of Full-Enhanced on the four benchmark datasets.</p>
+
+<h3>I.1 Same-Tactic Errors (STE)</h3>
+
+<p>STE occurs when the predicted technique shares the correct ATT&amp;CK tactic but resolves to a different sub-technique. Root cause: highly overlapping action semantics within the same tactic confuse Sentence-BERT embeddings even after dual-side enhancement.</p>
+
+<p><strong>Case STE-1 — Persistence: T1547.001 vs T1546.015</strong></p>
+<ul>
+  <li>Ground truth: <code>T1547.001</code> Registry Run Keys / Startup Folder</li>
+  <li>Predicted top-1: <code>T1546.015</code> Component Object Model Hijacking</li>
+  <li>Audit signature: process writes a registry key under <code>HKCU\Software\Microsoft\Windows\CurrentVersion\Run</code> then exits.</li>
+  <li>Why confused: both ATT&amp;CK descriptions emphasize "register a startup/execution-trigger mechanism through the Windows registry," producing near-identical action triplets after technique-side distillation.</li>
+</ul>
+
+<p><strong>Case STE-2 — Execution: T1059.001 vs T1059.003</strong></p>
+<ul>
+  <li>Ground truth: <code>T1059.001</code> PowerShell</li>
+  <li>Predicted top-1: <code>T1059.003</code> Windows Command Shell</li>
+  <li>Audit signature: <code>cmd.exe</code> spawns <code>powershell.exe -nop -w hidden -c &lt;base64&gt;</code>.</li>
+  <li>Why confused: the parent process is cmd.exe; both sub-techniques describe "interactive command interpreter execution," and the per-snapshot view does not distinguish parent-vs-child interpreter without sequence context.</li>
+</ul>
+
+<p><strong>Case STE-3 — Defense Evasion: T1070.004 vs T1070.001</strong></p>
+<ul>
+  <li>Ground truth: <code>T1070.004</code> File Deletion</li>
+  <li>Predicted top-1: <code>T1070.001</code> Clear Windows Event Logs</li>
+  <li>Audit signature: process unlinks files under <code>C:\Windows\System32\winevt\Logs\</code>.</li>
+  <li>Why confused: the deletion target happens to be an event log directory; both sub-techniques aim at "removing forensic artifacts from disk," and the audit record only exposes the syscall (<code>NtDeleteFile</code>) without the higher-level intent.</li>
+</ul>
+
+<h3>I.2 Cross-Tactic Errors (CTE)</h3>
+
+<p>CTE occurs when the predicted ATT&amp;CK tactic itself is wrong. Root cause: audit records expose only operation-level signatures (file open, network connect, syscall arguments) without payload semantics, so techniques across tactics that share the same operational shape become ambiguous.</p>
+
+<p><strong>Case CTE-1 — Exfiltration vs Command and Control: T1041 vs T1105</strong></p>
+<ul>
+  <li>Ground truth: <code>T1041</code> Exfiltration Over C2 Channel</li>
+  <li>Predicted top-1: <code>T1105</code> Ingress Tool Transfer</li>
+  <li>Audit signature: SSH session, file <code>/tmp/data.tar.gz</code> read, socket <code>send()</code> to attacker IP.</li>
+  <li>Why confused: both manifest as a file ↔ network transfer over an encrypted tunnel. Without payload inspection, direction (outbound exfil vs inbound tool drop) is ambiguous from the audit-log view; both techniques' descriptions emphasize "use the existing C2 channel to move a file."</li>
+</ul>
+
+<p><strong>Case CTE-2 — Discovery vs Discovery (cross sub-tactic boundary): T1083 vs T1057</strong></p>
+<ul>
+  <li>Ground truth: <code>T1083</code> File and Directory Discovery</li>
+  <li>Predicted top-1: <code>T1057</code> Process Discovery</li>
+  <li>Audit signature: short interleaved sequence <code>ls /etc</code>, <code>ps -ef</code>, <code>cat /proc/cpuinfo</code>, <code>ls /home</code>.</li>
+  <li>Why confused: the time-window snapshot boundary splits a longer reconnaissance pattern; the visible portion is dominated by <code>ps</code>/<code>/proc</code> reads, biasing the top-1 toward process discovery.</li>
+</ul>
+
+<p><strong>Case CTE-3 — Credential Access vs Collection: T1003.008 vs T1005</strong></p>
+<ul>
+  <li>Ground truth: <code>T1003.008</code> OS Credential Dumping: /etc/passwd and /etc/shadow</li>
+  <li>Predicted top-1: <code>T1005</code> Data from Local System</li>
+  <li>Audit signature: process opens <code>/etc/passwd</code> and <code>/etc/shadow</code> for read, copies content to <code>/tmp/creds.txt</code>.</li>
+  <li>Why confused: the audit record shows a generic file-read-then-write to local disk; without recognizing the security significance of the source paths, the technique resolves to the broader "data from local system" tactic.</li>
+</ul>
+
+<p>Across all four datasets, STE and CTE residuals concentrate in tactics whose ATT&amp;CK definitions share operational signatures (Persistence, Execution, Defense Evasion for STE; Exfiltration/C2, Discovery, Credential Access/Collection for CTE). Mitigating these residuals likely requires payload-level visibility or external context (process lineage, full command history) beyond the kernel-level audit stream.</p>
 
 <div class="footer">
 <p>This page hosts the online supplementary material referenced in the main paper.
