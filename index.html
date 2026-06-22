@@ -328,9 +328,9 @@ python -m vllm.entrypoints.openai.api_server \
 <p>The "USD / 1k Snap" column in <em>tab:llm-cost</em> is computed as follows:</p>
 
 <ul>
-  <li><strong>GPT-4o (<code>gpt-4o-2024-11-20</code>)</strong> — OpenAI public pricing for the pinned snapshot (<code>$2.50</code> per 1M input tokens, <code>$10.00</code> per 1M output tokens), multiplied by per-snapshot token usage × Total Calls × 1000.</li>
+  <li><strong>GPT-4o (<code>gpt-4o-2024-11-20</code>)</strong> — OpenAI public pricing for the pinned snapshot (<code>$2.50</code> per 1M input tokens, <code>$10.00</code> per 1M output tokens), multiplied by per-call token usage × Total Calls.</li>
   <li><strong>DeepSeek-V3 (<code>DeepSeek-V3-0324</code>)</strong> — DeepSeek public API pricing for the pinned 0324 snapshot (<code>$0.27</code> per 1M input tokens, <code>$1.10</code> per 1M output tokens; non-cached pricing applied), same formula.</li>
-  <li><strong>Qwen2.5 (7B / 14B), GLM-4 (9B)</strong> — amortized RTX 4090 rental cost using the vast.ai reference rate (<code>~$0.40</code>/hour) × wall-clock time per snapshot × 1000.</li>
+  <li><strong>Qwen2.5 (7B / 14B), GLM-4 (9B)</strong> — shown as <code>--</code> in <em>tab:llm-cost</em>. These models run on locally-deployed weights (vLLM on a single RTX 4090) and incur no API expenditure, so no monetary cost is reported. Compute overhead for these models is captured by the per-snapshot latency columns.</li>
 </ul>
 
 <p><strong>Caveat.</strong> API prices change frequently; the absolute USD numbers are illustrative as of the paper's revision date. The per-call token counts and latencies in <em>tab:llm-cost</em> are physical quantities and remain reproducible regardless of pricing shifts.</p>
