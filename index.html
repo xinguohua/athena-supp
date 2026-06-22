@@ -291,7 +291,6 @@ Qwen2.5       14B    Qwen2.5-14B-Instruct          0.2   0.95   40     512 / 102
 DeepSeek-V3   671B   DeepSeek-V3-0324              0.2   0.95   --     512 / 1024            ["\n\n"]        DeepSeek API
 GLM-4         9B     glm-4-9b-chat                 0.2   0.95   40     512 / 1024            ["&lt;|user|&gt;"]   vLLM (local)</div>
 
-<p style="font-size:0.88em;color:#555"><strong>Pin rationale</strong>: OpenAI and DeepSeek versions are date-pinned snapshots that the providers commit to keeping callable for reproducibility (GPT-4o's last GPT-4o snapshot, after which OpenAI migrated to GPT-4.1 and GPT-5; DeepSeek-V3-0324 is the explicitly date-pinned V3 update). The three open-weight models (Qwen2.5-7B, Qwen2.5-14B, GLM-4-9B) have immutable open weights on Hugging Face and are version-stable by construction.</p>
 
 <p>The candidate-selection stage uses a 512-token budget (short scoring output); the semantic-mutation stage uses 1024 tokens (richer attribute edits). The shared temperature 0.2 keeps generation stable while preserving enough variability for diverse mutations.</p>
 
