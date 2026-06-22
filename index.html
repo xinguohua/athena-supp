@@ -80,59 +80,49 @@ Supplementary content moved out of the main paper due to space limits.
 
 <h2 id="algo1">A. Algorithm 1 — Structural Mutation</h2>
 
-<p>Referenced from §IV.C "Structural Mutation" of the main paper. The procedure has four stages: (1) Reference Graph Retrieval, (2) Aligned Region Search, (3) Subgraph Replacement, and (4) LLM-Guided Edge Mutation. The output is the structurally mutated graph <code>G̃</code>, on which semantic mutation (Section C of this supplementary) is then applied.</p>
+<p>The full pseudocode for structural mutation. Output <code>G̃</code> is passed to semantic mutation (Section C).</p>
 
-<p><strong>Input</strong>: <code>G⁺ = (V, E)</code> (benign anchor graph), <code>𝒢⁻</code> (attack corpus), <code>N</code> (retrieval count), <code>r</code> (hop radius)</p>
+<p><strong>Input</strong>: benign anchor graph <code>G+</code>; attack corpus <code>𝒢-</code>; retrieval count <code>N</code>; hop radius <code>r</code>.<br>
+<strong>Output</strong>: structurally mutated graph <code>G̃</code>.</p>
 
-<p><strong>Output</strong>: structurally mutated graph <code>G̃ = (Ṽ, Ẽ)</code></p>
+<div class="algo">Stage 1 — Reference Graph Retrieval
+  Retrieve the Top-N attack graphs {G-_1, ..., G-_N} from 𝒢-
+  that are most similar to G+ under the Weisfeiler-Leman kernel.
 
-<div class="algo">// Stage 1: Reference Graph Retrieval
-1:  {G⁻_n} for n = 1..N  ←  Top-N over G⁻ in 𝒢⁻ by  K_WL(G⁺, G⁻)
+Stage 2 — Aligned Region Search
+  For each retrieved G-_n:
+      pick the seed node pair (p₀, q₀) with the highest Jaccard
+        similarity on node labels;
+      grow an aligned subgraph pair (S, S') by repeatedly adding
+        the best-matching unmatched neighbor pair, staying within
+        r hops of the seed in G+;
+      halt when no further matching pair can be added;
+      record the average pair similarity of (S, S').
+  Keep the single (S, S') with the highest average pair similarity
+    across all N candidates. Let φ be the node map S → S'.
+  Define C = r-hop neighborhood of S in G+ (the boundary context).
 
-// Stage 2: Aligned Region Search
-2:  s(u, v)  ←  |T(u) ∩ T(v)| / |T(u) ∪ T(v)|      // Jaccard similarity on node labels
-3:  Cands  ←  ∅
-4:  for n = 1 to N do
-5:      (p₀, q₀)  ←  argmax over (p, q) in V × V(G⁻_n) of s(p, q)        // seed pair
-6:      S, S′  ←  {p₀}, {q₀};   φ  ←  {p₀ ↦ q₀};   Q  ←  [(p₀, q₀)]
-7:      while Q ≠ ∅ do
-8:          (p_c, q_c)  ←  Q.dequeue()
-9:          for all unmatched pairs (p′, q′) with p′ neighbor of some matched p in S, q′ neighbor of φ(p) in G⁻_n,
-              and dist_{G⁺}(p′, p₀) ≤ r do
-10:             pick (p′, q′)  =  argmax s(p′, q′)                       // best-matching unmatched neighbor
-11:             if no such pair then break                                 // halt when no further pair can be added
-12:             S, S′  ←  S ∪ {p′}, S′ ∪ {q′};   φ(p′)  ←  q′;   Q.enqueue((p′, q′))
-13:         end for
-14:     end while
-15:     avg_n  ←  (1/|S|) · Σ_{p ∈ S} s(p, φ(p))                          // average pair similarity for this candidate
-16:     Cands  ←  Cands ∪ {(n, S, S′, φ, avg_n)}
-17: end for
-18: (n*, S, S′, φ, _)  ←  argmax over (n, S, S′, φ, avg_n) in Cands of avg_n   // keep best-aligned (S, S′)
-19: C  ←  { u ∈ V | min_{v ∈ S} dist_{G⁺}(u, v) ≤ r } \ S                  // r-hop boundary context around S
+Stage 3 — Subgraph Replacement
+  Remove S (and its internal edges) from G+; insert S' (and its
+    internal edges) in place.
+  For every edge of G+ with one endpoint p in S and the other
+    endpoint outside S, remap p to φ(p) so the edge now reaches
+    the corresponding node in S'.
+  Call the result the intermediate graph.
 
-// Stage 3: Subgraph Replacement
-20: E_internal_S′  ←  { (u, v) ∈ E(G⁻_{n*}) : u, v ∈ S′ }                  // internal edges of S′ (attack causal chain)
-21: E_boundary    ←  { (φ(u), w) : (u, w) ∈ E, u ∈ S, w ∉ S } ∪
-                     { (w, φ(u)) : (w, u) ∈ E, u ∈ S, w ∉ S }              // S-side endpoints remapped to S′ via φ
-22: Ṽ_mid  ←  (V \ S) ∪ S′
-23: Ẽ_mid  ←  ({ (u, v) ∈ E : u, v ∉ S }) ∪ E_internal_S′ ∪ E_boundary     // remove edges inside S; preserve outside; add S′ internal + remapped boundary
+Stage 4 — LLM-Guided Edge Mutation     (prompt: Section B)
+  Collect candidate edges between S' and C (both existing edges
+    and plausible new edges).
+  The LLM returns one of {ADD, REMOVE, KEEP} per candidate;
+    apply the actions to the intermediate graph.
 
-// Stage 4: LLM-Guided Edge Mutation (prompt: Section B of this supplementary)
-24: cand_boundary  ←  { existing boundary edges between S′ and C }  ∪  { plausible new edges between S′ and C }
-25: actions  ←  LLM_EdgeMutation(cand_boundary)                            // each action ∈ {ADD, REMOVE, KEEP}
-26: Ẽ  ←  Ẽ_mid
-27: for each (e, action) in actions do
-28:     if action = ADD     then Ẽ  ←  Ẽ ∪ {e}
-29:     if action = REMOVE  then Ẽ  ←  Ẽ \ {e}
-30: end for
-31: Ṽ  ←  Ṽ_mid
-32: return G̃ = (Ṽ, Ẽ)</div>
+Return the resulting graph as G̃.</div>
 
-<p><strong>Notes.</strong> Stage 2 follows the paper's wording: "the alignment grows from the seed by adding the best-matching unmatched neighbors of any matched pair at each step, bounded within <code>r</code> hops of the seed, and halts when no further matching pair can be added." Across the <code>N</code> retrieved attack graphs, ATHENA keeps the single <code>(S, S′)</code> with the highest average pair similarity (no LLM call at this stage). Stage 4 is where the LLM enters; the prompt and decision schema are in Section B of this supplementary.</p>
+<p><strong>Notes.</strong> The LLM enters only in Stage 4. Stages 1–3 are deterministic: retrieval is a Top-N kernel ranking, alignment grows by Jaccard-best neighbor expansion, and the best <code>(S, S')</code> is chosen by argmax of average pair similarity.</p>
 
 <h2 id="prompt1">B. Prompt Template — Edge Mutation</h2>
 
-<p>Referenced from §IV.C "LLM-Guided Edge Mutation" of the main paper. After subgraph replacement, boundary connections between the substituted attack subgraph <code>S′</code> and the benign context <code>C</code> still follow the original benign workflow around <code>S</code> and may introduce invalid or conspicuous cross-boundary operations. ATHENA <strong>restricts edge mutation to candidate edges between <code>S′</code> and <code>C</code></strong>; internal edges of <code>S′</code> (attack causal chain) and internal edges of <code>C</code> are not editable. For each candidate, the LLM decides whether to <strong>add</strong> a missing edge, <strong>remove</strong> an existing edge, or <strong>keep</strong> it unchanged.</p>
+<p>For each candidate boundary edge between <code>S'</code> and <code>C</code>, the LLM decides one of {ADD, REMOVE, KEEP}. Internal edges of <code>S'</code> (the attack causal chain) and internal edges of <code>C</code> are not editable.</p>
 
 <div class="prompt">
 <div class="title">Prompt: Edge Mutation</div>
@@ -161,9 +151,9 @@ Supplementary content moved out of the main paper due to space limits.
 
 <h2 id="prompt2">C. Prompt Templates — Semantic Mutation</h2>
 
-<p>Referenced from §IV.C "Semantic Mutation" of the main paper. Semantic mutation modifies process command names and arguments to blend them into the surrounding benign context. Each process node is pre-classified as one of three cases (Replacement, Rewriting, Extension) based on whether its command name and arguments are observed in the historical benign provenance graphs; this classification is performed externally and not by the LLM, since the full benign history cannot fit in a prompt. The pipeline then dispatches to one of three strategy-specific prompts (C.1, C.2, C.3 below); each prompt contains only the per-node information the LLM needs.</p>
+<p>Each process node is pre-classified as one of three cases — Replacement (C.1), Rewriting (C.2), Extension (C.3) — based on whether its command name and arguments are observed in the historical benign graphs. The classification is done externally, not by the LLM, because the full benign history is too large to fit in a prompt.</p>
 
-<p>All three prompts share the same input/output interface: the LLM receives the process node's <strong>command name and arguments</strong> together with <strong><code>C</code> serialized as neighboring events</strong> in the typed-triple form <code>(src_type:attr, op, dst_type:attr)</code>, and outputs a <strong>rewritten command name with corresponding arguments</strong>. Downstream propagation to associated file/network node attributes is performed mechanically based on the rewritten command-line file paths and network endpoints, and is not part of the LLM output.</p>
+<p>All three prompts share the same I/O: input is the process node's <strong>command name + arguments</strong> plus the boundary context <code>C</code> serialized as typed triples <code>(src_type:attr, op, dst_type:attr)</code>; output is a <strong>rewritten command name + arguments</strong>. Propagation to associated file/network nodes is done mechanically post-hoc, not by the LLM.</p>
 
 <h3>C.1 Replacement Prompt</h3>
 
@@ -261,7 +251,7 @@ Supplementary content moved out of the main paper due to space limits.
 
 <h2 id="hyperparam">D. Additional Hyperparameter Analysis (GNN Layers and Embedding Dimension)</h2>
 
-<p>Referenced from <em>RQ6. Influence of Different Parameters</em> in the main paper. The main paper reports sensitivity for time window length (<code>T</code>) and neighborhood size (<code>r</code>); analysis for GNN layers (<code>L</code>) and embedding dimension (<code>D</code>) is provided here.</p>
+<p>Sensitivity analysis for GNN layers (<code>L</code>) and embedding dimension (<code>D</code>). <code>T</code> and <code>r</code> are analyzed in the main paper.</p>
 
 <h3>GNN Layers (<code>L</code>)</h3>
 
@@ -277,7 +267,7 @@ Supplementary content moved out of the main paper due to space limits.
 
 <h2 id="llmconfig">E. LLM Configuration &amp; Reproducibility</h2>
 
-<p>Referenced from §5 Implementation and RQ2 setup in the main paper. The main paper points here for the exact model versions, prompts, retry policy, and per-model configurations; the local deployment recipe and the USD-cost pricing source are also released here for reproducibility.</p>
+<p>Exact model versions, sampling parameters, retry policy, local deployment recipe, and USD-cost pricing source for the five LLMs used in our experiments.</p>
 
 <h3>E.1 Per-Model Configurations</h3>
 
@@ -382,7 +372,7 @@ python -m vllm.entrypoints.openai.api_server \
 
 <h2 id="dataset">G. Annotated Dataset &amp; Source Code</h2>
 
-<p>Referenced from §V Setup and §V RQ3 setup of the main paper. Both the annotated dataset and the source code are released together for full reproducibility.</p>
+<p>The annotated dataset and the full source code are released together for reproducibility.</p>
 
 <p>The annotated APT detection dataset and the full ATHENA source code are released together at:</p>
 
@@ -398,7 +388,7 @@ python -m vllm.entrypoints.openai.api_server \
 
 <h2 id="rating">H. Verification Ablation — Rating Protocol &amp; Per-Variant Scores</h2>
 
-<p>Referenced from §V RQ2 (2) <em>Attack Variant Reliability</em> in the main paper. The main paper reports per-condition usability/F1/MMD <em>p</em>-values in Table V (<em>tab:variant-usability</em>); this section provides the rater recruitment, scoring rubric, per-condition Krippendorff's <em>α</em>, MMD test configuration, and a sample of per-variant scores.</p>
+<p>Rater recruitment, scoring rubric, per-condition Krippendorff's <em>α</em>, MMD test configuration, and per-variant scores for the verification ablation reported in Table V (<em>tab:variant-usability</em>).</p>
 
 <h3>H.1 Rater Recruitment</h3>
 
@@ -628,7 +618,7 @@ h5Render();
 
 <h2 id="attckcase">I. ATT&amp;CK Mapping Failure Cases (STE &amp; CTE)</h2>
 
-<p>Referenced from §V RQ3 (1) <em>ATT&amp;CK Technique Mapping</em> in the main paper. The main paper reports Full-Enhanced's residual 9.4% Same-Tactic Errors (STE) and 5.7% Cross-Tactic Errors (CTE); representative cases for each error class are provided here, drawn from the failure traces of Full-Enhanced on the four benchmark datasets.</p>
+<p>Representative failure cases behind Full-Enhanced's residual 9.4% Same-Tactic Errors (STE) and 5.7% Cross-Tactic Errors (CTE), drawn from the four benchmark datasets.</p>
 
 <h3>I.1 Same-Tactic Errors (STE)</h3>
 
