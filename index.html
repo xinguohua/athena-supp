@@ -283,13 +283,15 @@ Supplementary content moved out of the main paper due to space limits.
 
 <p>All five LLMs are queried with the JSON-only system instruction described in Prompts B and C above. The table below lists the exact model version (snapshot/release tag), shared sampling parameters (temperature, top-<em>p</em>, top-<em>k</em>, max generation length), stop tokens, and access mode for each model.</p>
 
-<div class="algo">Model         Size   Version                       Temp  top-p  top-k  max_tokens (sel/mut)  stop_tokens     access
------         ----   -------                       ----  -----  -----  --------------------  -----------     ------
-GPT-4o        --     gpt-4o-2024-08-06             0.2   0.95   --     512 / 1024            ["\n\n"]        OpenAI API
+<div class="algo">Model         Size   Version (pinned)              Temp  top-p  top-k  max_tokens (sel/mut)  stop_tokens     access
+-----         ----   ----------------              ----  -----  -----  --------------------  -----------     ------
+GPT-4o        --     gpt-4o-2024-11-20             0.2   0.95   --     512 / 1024            ["\n\n"]        OpenAI API
 Qwen2.5       7B     Qwen2.5-7B-Instruct           0.2   0.95   40     512 / 1024            ["&lt;|im_end|&gt;"] vLLM (local)
 Qwen2.5       14B    Qwen2.5-14B-Instruct          0.2   0.95   40     512 / 1024            ["&lt;|im_end|&gt;"] vLLM (local)
-DeepSeek-V3   671B   deepseek-chat (2024-12)       0.2   0.95   --     512 / 1024            ["\n\n"]        DeepSeek API
+DeepSeek-V3   671B   DeepSeek-V3-0324              0.2   0.95   --     512 / 1024            ["\n\n"]        DeepSeek API
 GLM-4         9B     glm-4-9b-chat                 0.2   0.95   40     512 / 1024            ["&lt;|user|&gt;"]   vLLM (local)</div>
+
+<p style="font-size:0.88em;color:#555"><strong>Pin rationale</strong>: OpenAI and DeepSeek versions are date-pinned snapshots that the providers commit to keeping callable for reproducibility (GPT-4o's last GPT-4o snapshot, after which OpenAI migrated to GPT-4.1 and GPT-5; DeepSeek-V3-0324 is the explicitly date-pinned V3 update). The three open-weight models (Qwen2.5-7B, Qwen2.5-14B, GLM-4-9B) have immutable open weights on Hugging Face and are version-stable by construction.</p>
 
 <p>The candidate-selection stage uses a 512-token budget (short scoring output); the semantic-mutation stage uses 1024 tokens (richer attribute edits). The shared temperature 0.2 keeps generation stable while preserving enough variability for diverse mutations.</p>
 
@@ -327,8 +329,8 @@ python -m vllm.entrypoints.openai.api_server \
 <p>The "USD / 1k Snap" column in <em>tab:llm-cost</em> is computed as follows:</p>
 
 <ul>
-  <li><strong>GPT-4o</strong> — OpenAI public pricing as of June 2026 (<code>$2.50</code> per 1M input tokens, <code>$10.00</code> per 1M output tokens), multiplied by per-snapshot token usage × Total Calls × 1000.</li>
-  <li><strong>DeepSeek-V3</strong> — DeepSeek public API pricing as of June 2026, same formula.</li>
+  <li><strong>GPT-4o (<code>gpt-4o-2024-11-20</code>)</strong> — OpenAI public pricing for the pinned snapshot (<code>$2.50</code> per 1M input tokens, <code>$10.00</code> per 1M output tokens), multiplied by per-snapshot token usage × Total Calls × 1000.</li>
+  <li><strong>DeepSeek-V3 (<code>DeepSeek-V3-0324</code>)</strong> — DeepSeek public API pricing for the pinned 0324 snapshot (<code>$0.27</code> per 1M input tokens, <code>$1.10</code> per 1M output tokens; non-cached pricing applied), same formula.</li>
   <li><strong>Qwen2.5 (7B / 14B), GLM-4 (9B)</strong> — amortized RTX 4090 rental cost using the vast.ai reference rate (<code>~$0.40</code>/hour) × wall-clock time per snapshot × 1000.</li>
 </ul>
 
